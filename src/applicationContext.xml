@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd http://www.springframework.org/schema/tx  http://www.springframework.org/schema/tx/spring-tx.xsd">
+    <!--加载配置文件-->
+    <context:property-placeholder location="classpath:jdbc.properties"/>
+    <!--配置DataSource-->
+    <bean class="com.mchange.v2.c3p0.ComboPooledDataSource" id="dataSource">
+        <property name="driverClass" value="${driverClass}"/>
+        <property name="user" value="${user}"/>
+        <property name="jdbcUrl" value="${jdbcUrl}"/>
+        <property name="password" value="${password}"/>
+    </bean>
+    <!--事物管理器-->
+    <bean class="org.springframework.orm.hibernate3.HibernateTransactionManager" id="transactionManager">
+        <property name="sessionFactory" ref="sessionFactory"/>
+    </bean>
+    <!--组件扫描-->
+    <context:component-scan base-package="com.shenchao.bos"/>
+    <!--引入注解解析器-->
+    <context:annotation-config/>
+    <!--事务注解-->
+    <tx:annotation-driven/>
+
+    <!-- 配置远程服务的代理对象 -->
+    <bean id="customerService" class="org.springframework.remoting.caucho.HessianProxyFactoryBean">
+        <property name="serviceInterface" value="com.shenchao.bos.service.CustomerService"/>
+        <property name="serviceUrl" value="http://localhost:8081/crm/remoting/customer"/>
+    </bean>
+    <bean id="shiroFilter" class="org.apache.shiro.spring.web.ShiroFilterFactoryBean">
+        <property name="loginUrl" value="/login.jsp"/>
+        <property name="successUrl" value="/index.jsp"/>
+        <property name="unauthorizedUrl" value="/unauthorizedUrl.html"/>
+        <property name="securityManager" ref="securityManager"/>
+        <property name="filterChainDefinitions">
+            <value>
+                /css/** = anon
+                /easyui/** = anon
+                /js/** = anon
+                /images/** = anon
+                /json/** = anon
+                /userAction_login.action = anon
+                /login.jsp* = anon
+                /validatecode.jsp* = anon
+                /page_base_staff.action = perms["staff"]
+                /** = authc
+            </value>
+        </property>
+    </bean>
+    <!-- spring框架用于整合Hibernate的工厂bean -->
+    <bean id="sessionFactory" class="org.springframework.orm.hibernate3.LocalSessionFactoryBean">
+        <property name="dataSource" ref="dataSource"/>
+        <!-- 注入Hibernate相关的属性 -->
+        <property name="hibernateProperties">
+            <props>
+                <prop key="hibernate.dialect">org.hibernate.dialect.MySQL5Dialect</prop>
+                <prop key="hibernate.show_sql">true</prop>
+                <prop key="hibernate.format_sql">true</prop>
+                <prop key="hibernate.hbm2ddl.auto">update</prop>
+            </props>
+        </property>
+        <!-- 注入Hibernate的映射文件 -->
+        <property name="mappingDirectoryLocations">
+            <list>
+                <value>classpath:com/shenchao/bos/domain</value>
+            </list>
+        </property>
+    </bean>
+
+    <bean class="org.apache.shiro.web.mgt.DefaultWebSecurityManager" id="securityManager">
+        <property name="realm" ref="realm"/>
+        <property name="cacheManager" ref="cacheManager"/>
+    </bean>
+    <bean class="com.shenchao.bos.shiro.BOSRealm" id="realm">
+    </bean>
+    <!-- AOP式方法级权限检查  -->
+    <bean class="org.springframework.aop.framework.autoproxy.DefaultAdvisorAutoProxyCreator">
+        <property name="proxyTargetClass" value="true" />
+    </bean>
+    <bean class="org.apache.shiro.spring.security.interceptor.AuthorizationAttributeSourceAdvisor">
+    </bean>
+    <bean class="org.apache.shiro.cache.ehcache.EhCacheManager" id="cacheManager">
+        <property name="cacheManagerConfigFile" value="classpath:ehcache.xml"/>
+    </bean>
+    <bean id="processEngineConfiguration" class="org.activiti.spring.SpringProcessEngineConfiguration">
+        <!-- 注入数据源 -->
+        <property name="dataSource" ref="dataSource"/>
+        <!-- 注入事务管理器对象 -->
+        <property name="transactionManager" ref="transactionManager"/>
+        <property name="databaseSchemaUpdate" value="true" />
+    </bean>
+
+    <!-- 使用工厂创建流程引擎对象 -->
+    <bean id="processEngine" class="org.activiti.spring.ProcessEngineFactoryBean">
+        <property name="processEngineConfiguration" ref="processEngineConfiguration" />
+    </bean>
+
+    <bean factory-bean="processEngine" factory-method="getRepositoryService" id="repositoryService"/>
+    <bean factory-bean="processEngine" factory-method="getRuntimeService" id="runtimeService"/>
+    <bean factory-bean="processEngine" factory-method="getTaskService" id="taskService"/>
+    <bean factory-bean="processEngine" factory-method="getIdentityService" id="identityService"/>
+    <bean factory-bean="processEngine" factory-method="getHistoryService" id="historyService"/>
+</beans>
